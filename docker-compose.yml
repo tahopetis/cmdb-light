@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: cmdb_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-cmdb_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cmdb_password}
+      POSTGRES_DB: ${DB_NAME:-cmdb_lite}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema:/docker-entrypoint-initdb.d/schema
+      - ./database/migrations:/docker-entrypoint-initdb.d/migrations
+      - ./database/seeds:/docker-entrypoint-initdb.d/seeds
+    networks:
+      - cmdb_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cmdb_user} -d ${DB_NAME:-cmdb_lite}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "com.cmdb.description=PostgreSQL database for CMDB Lite"
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cmdb_backend
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      DATABASE_URL: db:${DB_PORT:-5432}
+      DATABASE_NAME: ${DB_NAME:-cmdb_lite}
+      DATABASE_USER: ${DB_USER:-cmdb_user}
+      DATABASE_PASSWORD: ${DB_PASSWORD:-cmdb_password}
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-this-in-production}
+      ENVIRONMENT: production
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cmdb_network
+    volumes:
+      - ./backend/.env.production:/app/.env
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.cmdb.description=Backend API for CMDB Lite"
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cmdb_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - cmdb_network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.cmdb.description=Frontend for CMDB Lite"
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  cmdb_network:
+    driver: bridge
+    labels:
+      - "com.cmdb.description=Network for CMDB Lite services"

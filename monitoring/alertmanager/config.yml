@@ -1,0 +1,103 @@
+global:
+  # The smarthost and SMTP sender used for mail notifications.
+  smtp_smarthost: 'localhost:25'
+  smtp_from: 'alertmanager@example.com'
+  smtp_auth_username: 'alertmanager'
+  smtp_auth_password: 'password'
+
+# The root route on which each incoming alert enters.
+route:
+  # The root route must not have any matchers as it is the entry point for
+  # all alerts. It needs to have a receiver configured so alerts that
+  # do not match any of the sub-routes are sent to this receiver.
+  receiver: 'web.hook'
+  
+  # The labels by which incoming alerts are grouped together. For example,
+  # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
+  # be batched into a single group.
+  group_by: ['alertname', 'severity']
+  
+  # When a new group of alerts is created by an incoming alert, wait at
+  # least 'group_wait' to send the initial notification.
+  # This way ensures that you get multiple alerts for the same group that start
+  # firing shortly after another are batched together on the first
+  # notification.
+  group_wait: 10s
+  
+  # When the first notification was sent, wait 'group_interval' to send a batch
+  # of new alerts that started firing for that group.
+  group_interval: 10s
+  
+  # If an alert has successfully been sent, wait 'repeat_interval' to
+  # resend them.
+  repeat_interval: 1h
+  
+  # All the above attributes are inherited by all child routes and can
+  # overwritten on each.
+
+# The child route trees.
+routes:
+  # This routes performs a regular expression match on alert labels to
+  # catch alerts that are related to the CMDB application.
+  - match_re:
+      service: cmdb.*
+    receiver: 'cmdb-team'
+    routes:
+      - match:
+          severity: critical
+        receiver: 'cmdb-critical'
+      - match:
+          severity: warning
+        receiver: 'cmdb-warning'
+
+# Inhibition rules allow to mute a set of alerts given that another alert is
+# firing.
+# We use this to mute any warning-level notifications if the same alert is
+# already critical.
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    # Apply inhibition if the alertname is the same.
+    equal: ['alertname']
+
+receivers:
+  - name: 'web.hook'
+    webhook_configs:
+      - url: 'http://127.0.0.1:5001/'
+
+  - name: 'cmdb-team'
+    email_configs:
+      - to: 'cmdb-team@example.com'
+        subject: 'CMDB Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Labels: {{ .Labels }}
+          {{ end }}
+
+  - name: 'cmdb-critical'
+    email_configs:
+      - to: 'cmdb-critical@example.com'
+        subject: '[CRITICAL] CMDB Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Labels: {{ .Labels }}
+          {{ end }}
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'
+
+  - name: 'cmdb-warning'
+    email_configs:
+      - to: 'cmdb-warning@example.com'
+        subject: '[WARNING] CMDB Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          {{ range .Alerts }}
+          Alert: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          Labels: {{ .Labels }}
+          {{ end }}

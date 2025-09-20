@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: cmdb_db_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-cmdb_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cmdb_password}
+      POSTGRES_DB: ${DB_NAME:-cmdb_lite}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema:/docker-entrypoint-initdb.d/schema
+      - ./database/migrations:/docker-entrypoint-initdb.d/migrations
+      - ./database/seeds:/docker-entrypoint-initdb.d/seeds
+    networks:
+      - cmdb_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-cmdb_user} -d ${DB_NAME:-cmdb_lite}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "com.cmdb.description=PostgreSQL database for CMDB Lite (Development)"
+
+  # Backend API (for development with hot reload)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: cmdb_backend_dev
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      DATABASE_URL: db:${DB_PORT:-5432}
+      DATABASE_NAME: ${DB_NAME:-cmdb_lite}
+      DATABASE_USER: ${DB_USER:-cmdb_user}
+      DATABASE_PASSWORD: ${DB_PASSWORD:-cmdb_password}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key}
+      ENVIRONMENT: development
+      GIN_MODE: debug
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cmdb_network
+    volumes:
+      - ./backend:/app
+      - ./backend/.env.development:/app/.env
+      - go_modules:/go/pkg/mod
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.cmdb.description=Backend API for CMDB Lite (Development)"
+
+  # Frontend (for development with hot reload)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: cmdb_frontend_dev
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - cmdb_network
+    volumes:
+      - ./frontend:/app
+      - node_modules:/app/node_modules
+      - ./frontend/.env.development:/app/.env
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://localhost:${SERVER_PORT:-8080}
+      - VITE_ENVIRONMENT=development
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.cmdb.description=Frontend for CMDB Lite (Development)"
+
+  # Database management tool
+  adminer:
+    image: adminer
+    container_name: cmdb_adminer_dev
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cmdb_network
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    labels:
+      - "com.cmdb.description=Database management tool for CMDB Lite (Development)"
+
+volumes:
+  postgres_data:
+    driver: local
+  go_modules:
+    driver: local
+  node_modules:
+    driver: local
+
+networks:
+  cmdb_network:
+    driver: bridge
+    labels:
+      - "com.cmdb.description=Network for CMDB Lite services (Development)"

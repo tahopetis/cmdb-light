@@ -1,0 +1,19 @@
+apiVersion: v2
+name: cmdb-lite
+description: A Helm chart for CMDB Lite application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - cmdb
+  - configuration-management
+  - it-management
+home: https://github.com/yourorg/cmdb-lite
+sources:
+  - https://github.com/yourorg/cmdb-lite
+maintainers:
+  - name: CMDB Lite Team
+    email: team@cmdb-lite.com
+annotations:
+  category: Database
+  licenses: Apache-2.0

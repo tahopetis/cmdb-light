@@ -1,0 +1,195 @@
+groups:
+  - name: cmdb-system-alerts
+    rules:
+      # Alert for high CPU usage
+      - alert: HighCPUUsage
+        expr: 100 * (1 - (rate(node_cpu_seconds_total{mode="idle"}[$__rate_interval]) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[$__rate_interval])))) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is {{ $value }}% for more than 5 minutes."
+
+      # Alert for very high CPU usage
+      - alert: VeryHighCPUUsage
+        expr: 100 * (1 - (rate(node_cpu_seconds_total{mode="idle"}[$__rate_interval]) / ignoring(mode) group_left sum(rate(node_cpu_seconds_total[$__rate_interval])))) > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-system
+        annotations:
+          summary: "Very high CPU usage detected"
+          description: "CPU usage is {{ $value }}% for more than 2 minutes."
+
+      # Alert for high memory usage
+      - alert: HighMemoryUsage
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% for more than 5 minutes."
+
+      # Alert for very high memory usage
+      - alert: VeryHighMemoryUsage
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-system
+        annotations:
+          summary: "Very high memory usage detected"
+          description: "Memory usage is {{ $value }}% for more than 2 minutes."
+
+      # Alert for high disk usage
+      - alert: HighDiskUsage
+        expr: 100 * (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-system
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is {{ $value }}% for more than 5 minutes."
+
+      # Alert for very high disk usage
+      - alert: VeryHighDiskUsage
+        expr: 100 * (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 90
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-system
+        annotations:
+          summary: "Very high disk usage detected"
+          description: "Disk usage is {{ $value }}% for more than 2 minutes."
+
+  - name: cmdb-application-alerts
+    rules:
+      # Alert for high error rate
+      - alert: HighErrorRate
+        expr: sum(rate(cmdb_http_requests_total{status_code=~"5.."}[$__rate_interval])) / sum(rate(cmdb_http_requests_total[$__rate_interval])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-application
+        annotations:
+          summary: "High HTTP error rate detected"
+          description: "HTTP error rate is {{ $value }} for more than 5 minutes."
+
+      # Alert for very high error rate
+      - alert: VeryHighErrorRate
+        expr: sum(rate(cmdb_http_requests_total{status_code=~"5.."}[$__rate_interval])) / sum(rate(cmdb_http_requests_total[$__rate_interval])) > 0.2
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-application
+        annotations:
+          summary: "Very high HTTP error rate detected"
+          description: "HTTP error rate is {{ $value }} for more than 2 minutes."
+
+      # Alert for high latency
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(cmdb_http_request_duration_seconds_bucket[$__rate_interval])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-application
+        annotations:
+          summary: "High HTTP latency detected"
+          description: "95th percentile HTTP latency is {{ $value }} seconds for more than 5 minutes."
+
+      # Alert for very high latency
+      - alert: VeryHighLatency
+        expr: histogram_quantile(0.95, sum(rate(cmdb_http_request_duration_seconds_bucket[$__rate_interval])) by (le)) > 2
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-application
+        annotations:
+          summary: "Very high HTTP latency detected"
+          description: "95th percentile HTTP latency is {{ $value }} seconds for more than 2 minutes."
+
+      # Alert for service down
+      - alert: ServiceDown
+        expr: up{job="cmdb-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: cmdb-application
+        annotations:
+          summary: "CMDB service is down"
+          description: "CMDB backend service has been down for more than 1 minute."
+
+  - name: cmdb-database-alerts
+    rules:
+      # Alert for high database query latency
+      - alert: HighDatabaseQueryLatency
+        expr: histogram_quantile(0.95, sum(rate(cmdb_db_query_duration_seconds_bucket[$__rate_interval])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-database
+        annotations:
+          summary: "High database query latency detected"
+          description: "95th percentile database query latency is {{ $value }} seconds for more than 5 minutes."
+
+      # Alert for very high database query latency
+      - alert: VeryHighDatabaseQueryLatency
+        expr: histogram_quantile(0.95, sum(rate(cmdb_db_query_duration_seconds_bucket[$__rate_interval])) by (le)) > 1
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-database
+        annotations:
+          summary: "Very high database query latency detected"
+          description: "95th percentile database query latency is {{ $value }} seconds for more than 2 minutes."
+
+      # Alert for high database connection usage
+      - alert: HighDatabaseConnectionUsage
+        expr: cmdb_db_connections_active / (cmdb_db_connections_active + cmdb_db_connections_idle) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-database
+        annotations:
+          summary: "High database connection usage detected"
+          description: "Database connection usage is {{ $value }} for more than 5 minutes."
+
+      # Alert for very high database connection usage
+      - alert: VeryHighDatabaseConnectionUsage
+        expr: cmdb_db_connections_active / (cmdb_db_connections_active + cmdb_db_connections_idle) > 0.9
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-database
+        annotations:
+          summary: "Very high database connection usage detected"
+          description: "Database connection usage is {{ $value }} for more than 2 minutes."
+
+  - name: cmdb-business-alerts
+    rules:
+      # Alert for high authentication failures
+      - alert: HighAuthenticationFailures
+        expr: sum(rate(cmdb_auth_failures_total[$__rate_interval])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          service: cmdb-business
+        annotations:
+          summary: "High authentication failures detected"
+          description: "Authentication failures are {{ $value }} per minute for more than 5 minutes."
+
+      # Alert for very high authentication failures
+      - alert: VeryHighAuthenticationFailures
+        expr: sum(rate(cmdb_auth_failures_total[$__rate_interval])) > 20
+        for: 2m
+        labels:
+          severity: critical
+          service: cmdb-business
+        annotations:
+          summary: "Very high authentication failures detected"
+          description: "Authentication failures are {{ $value }} per minute for more than 2 minutes."
