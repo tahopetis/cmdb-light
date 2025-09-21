@@ -19,51 +19,51 @@ import (
 func ObservabilityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// Generate request ID if not present
 		requestID := r.Header.Get("X-Request-ID")
 		if requestID == "" {
 			requestID = logging.GenerateRequestID()
 		}
-		
+
 		// Create context with request ID
 		ctx := logging.ContextWithRequestID(r.Context(), requestID)
-		
+
 		// Create logger with request ID
 		logger := logging.DefaultLogger().WithRequestID(requestID)
 		ctx = logging.ContextWithLogger(ctx, logger)
-		
+
 		// Update request with new context
 		r = r.WithContext(ctx)
-		
+
 		// Increment in-flight requests counter
 		metrics.DefaultMetrics.IncrementHTTPRequestsInFlight()
 		defer metrics.DefaultMetrics.DecrementHTTPRequestsInFlight()
-		
+
 		// Wrap response writer to capture status code and response size
 		wrappedWriter := &observabilityResponseWriter{ResponseWriter: w}
-		
+
 		// Apply tracing middleware if enabled
 		var tracingHandler http.Handler
-		if tracing.DefaultTracerProvider != nil && tracing.DefaultTracerProvider.IsEnabled() {
-			tracingHandler = tracing.DefaultTracerProvider.Middleware(next)
+		if tracing.DefaultTracerProvider != nil {
+			tracingHandler = tracing.HTTPTracingMiddleware(next)
 		} else {
 			tracingHandler = next
 		}
-		
+
 		// Call the next handler
 		tracingHandler.ServeHTTP(wrappedWriter, r)
-		
+
 		// Calculate request duration
 		duration := time.Since(start)
-		
+
 		// Get route from request
 		route := mux.CurrentRoute(r)
 		endpoint := "unknown"
 		if route != nil {
 			endpoint, _ = route.GetPathTemplate()
 		}
-		
+
 		// Record metrics
 		metrics.DefaultMetrics.RecordHTTPRequest(
 			r.Method,
@@ -72,7 +72,7 @@ func ObservabilityMiddleware(next http.Handler) http.Handler {
 			duration,
 			wrappedWriter.responseSize,
 		)
-		
+
 		// Log request
 		logger.LogHTTPRequest(
 			r.Method,
@@ -84,14 +84,19 @@ func ObservabilityMiddleware(next http.Handler) http.Handler {
 			duration,
 			wrappedWriter.responseSize,
 		)
-		
+
 		// Add tracing context if enabled
-		if tracing.DefaultTracerProvider != nil && tracing.DefaultTracerProvider.IsEnabled() {
-			tracing.SetSpanAttribute(ctx, "request_id", requestID)
-			tracing.SetSpanAttribute(ctx, "endpoint", endpoint)
-			tracing.SetSpanAttribute(ctx, "method", r.Method)
-			tracing.SetSpanAttribute(ctx, "status_code", wrappedWriter.statusCode)
-			tracing.SetSpanAttribute(ctx, "duration_ms", duration.Milliseconds())
+		if tracing.DefaultTracerProvider != nil {
+			span := tracing.GetSpanFromContext(r.Context())
+			if span != nil {
+				span.SetAttributes(
+					attribute.String("request_id", requestID),
+					attribute.String("endpoint", endpoint),
+					attribute.String("method", r.Method),
+					attribute.Int("status_code", wrappedWriter.statusCode),
+					attribute.Float64("duration_ms", float64(duration.Milliseconds())),
+				)
+			}
 		}
 	})
 }
@@ -139,12 +144,12 @@ func DatabaseQueryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Get logger from context
 		logger := logging.GetLoggerFromContext(r.Context())
-		
+
 		// Create context with database query hook
 		ctx := context.WithValue(r.Context(), "dbQueryHook", func(query string, args []interface{}, duration time.Duration, err error) {
 			// Log database query
 			logger.LogDBQuery(query, args, duration, err)
-			
+
 			// Record metrics
 			// Extract table name from query (simplified)
 			table := "unknown"
@@ -174,7 +179,7 @@ func DatabaseQueryMiddleware(next http.Handler) http.Handler {
 					}
 				}
 			}
-			
+
 			// Determine operation type
 			operation := "unknown"
 			if len(query) > 6 {
@@ -189,28 +194,28 @@ func DatabaseQueryMiddleware(next http.Handler) http.Handler {
 					operation = "delete"
 				}
 			}
-			
+
 			// Record metrics
 			metrics.DefaultMetrics.RecordDBQuery(operation, table, duration)
-			
+
 			// Add tracing context if enabled
-			if tracing.DefaultTracerProvider != nil && tracing.DefaultTracerProvider.IsEnabled() {
-				tracing.AddSpanEvent(r.Context(), "database_query", 
+			if tracing.DefaultTracerProvider != nil {
+				tracing.AddSpanEvent(r.Context(), "database_query",
 					attribute.String("query", query),
 					attribute.String("table", table),
 					attribute.String("operation", operation),
 					attribute.Int64("duration_ms", duration.Milliseconds()),
 				)
-				
+
 				if err != nil {
 					tracing.SetSpanError(r.Context(), err)
 				}
 			}
 		})
-		
+
 		// Update request with new context
 		r = r.WithContext(ctx)
-		
+
 		// Call the next handler
 		next.ServeHTTP(w, r)
 	})
@@ -234,22 +239,22 @@ func extractTableName(query string, startIndex int) string {
 	if startIndex >= len(query) {
 		return "unknown"
 	}
-	
+
 	// Skip whitespace
 	for startIndex < len(query) && query[startIndex] == ' ' {
 		startIndex++
 	}
-	
+
 	// Extract table name until whitespace or special character
 	endIndex := startIndex
 	for endIndex < len(query) && query[endIndex] != ' ' && query[endIndex] != ',' && query[endIndex] != ';' && query[endIndex] != '(' {
 		endIndex++
 	}
-	
+
 	if startIndex >= endIndex {
 		return "unknown"
 	}
-	
+
 	return query[startIndex:endIndex]
 }
 

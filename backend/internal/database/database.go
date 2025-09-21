@@ -1,7 +1,6 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
@@ -65,31 +64,57 @@ func (db *DB) Close() error {
 
 // GetMigrationDir returns the path to the migrations directory
 func GetMigrationDir() (string, error) {
-	// This assumes the migrations directory is at the root of the project
-	// In a real application, you might want to make this configurable
-	migrationsDir, err := filepath.Abs("../database/migrations")
+	// The migrations directory is mounted at /database/migrations in the container
+	migrationsDir := "/database/migrations"
+
+	// Check if the directory exists
+	if _, err := os.Stat(migrationsDir); os.IsNotExist(err) {
+		return "", fmt.Errorf("migrations directory does not exist: %s", migrationsDir)
+	}
+
+	// Get absolute path
+	absPath, err := filepath.Abs(migrationsDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path to migrations directory: %w", err)
 	}
-	return migrationsDir, nil
+
+	return absPath, nil
 }
 
 // GetSchemaDir returns the path to the schema directory
 func GetSchemaDir() (string, error) {
-	schemaDir, err := filepath.Abs("../database/schema")
+	schemaDir := "/database/schema"
+
+	// Check if the directory exists
+	if _, err := os.Stat(schemaDir); os.IsNotExist(err) {
+		return "", fmt.Errorf("schema directory does not exist: %s", schemaDir)
+	}
+
+	// Get absolute path
+	absPath, err := filepath.Abs(schemaDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path to schema directory: %w", err)
 	}
-	return schemaDir, nil
+
+	return absPath, nil
 }
 
 // GetSeedsDir returns the path to the seeds directory
 func GetSeedsDir() (string, error) {
-	seedsDir, err := filepath.Abs("../database/seeds")
+	seedsDir := "/database/seeds"
+
+	// Check if the directory exists
+	if _, err := os.Stat(seedsDir); os.IsNotExist(err) {
+		return "", fmt.Errorf("seeds directory does not exist: %s", seedsDir)
+	}
+
+	// Get absolute path
+	absPath, err := filepath.Abs(seedsDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path to seeds directory: %w", err)
 	}
-	return seedsDir, nil
+
+	return absPath, nil
 }
 
 // ApplySchema applies the initial database schema
@@ -97,7 +122,7 @@ func (db *DB) ApplySchema(schemaDir string) error {
 	// For now, we'll just run the initial schema file
 	// In a real application, you might want to handle multiple schema files
 	schemaFile := filepath.Join(schemaDir, "001_initial_schema.sql")
-	
+
 	// Read the schema file
 	schemaSQL, err := os.ReadFile(schemaFile)
 	if err != nil {
@@ -118,7 +143,7 @@ func (db *DB) ApplySeeds(seedsDir string) error {
 	// For now, we'll just run the initial seed file
 	// In a real application, you might want to handle multiple seed files
 	seedFile := filepath.Join(seedsDir, "001_initial_data.sql")
-	
+
 	// Read the seed file
 	seedSQL, err := os.ReadFile(seedFile)
 	if err != nil {

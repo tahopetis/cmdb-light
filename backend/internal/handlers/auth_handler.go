@@ -19,7 +19,7 @@ type AuthHandler struct {
 	refreshTokenRepo repositories.RefreshTokenRepository
 	jwtManager       *auth.JWTManager
 	passwordManager  *auth.PasswordManager
-	validator       *validation.Validator
+	validator        *validation.Validator
 }
 
 // NewAuthHandler creates a new AuthHandler
@@ -34,7 +34,7 @@ func NewAuthHandler(
 		refreshTokenRepo: refreshTokenRepo,
 		jwtManager:       jwtManager,
 		passwordManager:  passwordManager,
-		validator:       validation.NewValidator(),
+		validator:        validation.NewValidator(),
 	}
 }
 
@@ -140,7 +140,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 // @Router /auth/validate [get]
 func (h *AuthHandler) ValidateToken(w http.ResponseWriter, r *http.Request) {
 	// Get the user from the context (set by the AuthMiddleware)
-	userID, ok := GetUserIDFromContext(r.Context())
+	userID, ok := GetUserIDFromContext(r)
 	if !ok {
 		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return

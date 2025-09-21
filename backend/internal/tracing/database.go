@@ -3,12 +3,11 @@ package tracing
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
 	"time"
 
 	"database/sql"
+
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // DBTracer is a wrapper around a driver.Driver that traces database operations

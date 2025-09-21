@@ -36,12 +36,17 @@ services:
     restart: unless-stopped
     environment:
       SERVER_PORT: ${SERVER_PORT:-8080}
-      DATABASE_URL: db:${DB_PORT:-5432}
-      DATABASE_NAME: ${DB_NAME:-cmdb_lite}
-      DATABASE_USER: ${DB_USER:-cmdb_user}
-      DATABASE_PASSWORD: ${DB_PASSWORD:-cmdb_password}
+      DB_HOST: db
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-cmdb_lite}
+      DB_USER: ${DB_USER:-cmdb_user}
+      DB_PASSWORD: ${DB_PASSWORD:-cmdb_password}
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-this-in-production}
       ENVIRONMENT: production
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+      CORS_ALLOWED_METHODS: ${CORS_ALLOWED_METHODS:-GET,POST,PUT,DELETE,OPTIONS}
+      CORS_ALLOWED_HEADERS: ${CORS_ALLOWED_HEADERS:-Accept,Content-Type,Content-Length,Accept-Encoding,Authorization,X-Requested-With}
+      CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
     ports:
       - "${SERVER_PORT:-8080}:8080"
     depends_on:
@@ -51,6 +56,7 @@ services:
       - cmdb_network
     volumes:
       - ./backend/.env.production:/app/.env
+      - ./database:/database
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s

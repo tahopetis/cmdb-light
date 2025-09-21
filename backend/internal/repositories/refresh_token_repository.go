@@ -6,11 +6,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cmdb-lite/backend/internal/auth"
 	"github.com/cmdb-lite/backend/internal/models"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 )
+
+// ErrNotFound is returned when a requested resource is not found
+var ErrNotFound = errors.New("resource not found")
 
 // RefreshTokenRepository defines the interface for refresh token operations
 type RefreshTokenRepository interface {

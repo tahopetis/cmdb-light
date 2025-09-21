@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/zipkin"
@@ -100,7 +101,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 }
 
 // AddSpanEvent adds an event to the current span
-func AddSpanEvent(ctx context.Context, name string, attributes ...trace.Attribute) {
+func AddSpanEvent(ctx context.Context, name string, attributes ...attribute.KeyValue) {
 	span := trace.SpanFromContext(ctx)
 	if span != nil {
 		span.AddEvent(name, trace.WithAttributes(attributes...))

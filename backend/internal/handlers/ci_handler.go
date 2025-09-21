@@ -16,10 +16,10 @@ import (
 
 // CIHandler handles HTTP requests for CIs
 type CIHandler struct {
-	ciRepo       repositories.CIRepository
-	relRepo      repositories.RelationshipRepository
-	auditRepo    repositories.AuditLogRepository
-	validator    *validation.Validator
+	ciRepo    repositories.CIRepository
+	relRepo   repositories.RelationshipRepository
+	auditRepo repositories.AuditLogRepository
+	validator *validation.Validator
 }
 
 // NewCIHandler creates a new CIHandler
@@ -205,7 +205,7 @@ func (h *CIHandler) GetAllCIs(w http.ResponseWriter, r *http.Request) {
 
 	// Create response
 	response := map[string]interface{}{
-		"data":       paginatedCIs,
+		"data": paginatedCIs,
 		"pagination": map[string]interface{}{
 			"page":  page,
 			"limit": limit,
@@ -412,14 +412,14 @@ func (h *CIHandler) GetCIGraph(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get relationships where this CI is the source
-	sourceRels, err := h.relRepo.GetBySourceID(r.Context(), id)
+	sourceRels, err := h.relRepo.GetBySourceCI(r.Context(), id)
 	if err != nil {
 		middleware.RespondWithInternalError(w, "Failed to get relationships", nil)
 		return
 	}
 
 	// Get relationships where this CI is the target
-	targetRels, err := h.relRepo.GetByTargetID(r.Context(), id)
+	targetRels, err := h.relRepo.GetByTargetCI(r.Context(), id)
 	if err != nil {
 		middleware.RespondWithInternalError(w, "Failed to get relationships", nil)
 		return

@@ -2,14 +2,12 @@ package logging
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"runtime"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 // ContextKey is a type for context keys
@@ -197,7 +195,7 @@ func GenerateRequestID() string {
 
 // LogHTTPRequest logs HTTP request information
 func (l *Logger) LogHTTPRequest(method, path, query, userAgent, remoteAddr string, statusCode int, latency time.Duration, contentLength int64) {
-	l.Info().
+	l.logger.Info().
 		Str("method", method).
 		Str("path", path).
 		Str("query", query).
@@ -211,7 +209,7 @@ func (l *Logger) LogHTTPRequest(method, path, query, userAgent, remoteAddr strin
 
 // LogDBQuery logs database query information
 func (l *Logger) LogDBQuery(query string, args []interface{}, duration time.Duration, err error) {
-	event := l.Info().
+	event := l.logger.Info().
 		Str("query", query).
 		Interface("args", args).
 		Dur("duration", duration)
@@ -225,7 +223,7 @@ func (l *Logger) LogDBQuery(query string, args []interface{}, duration time.Dura
 
 // LogBusinessEvent logs business events
 func (l *Logger) LogBusinessEvent(eventType, action, entityType, entityID string, details map[string]interface{}) {
-	event := l.Info().
+	event := l.logger.Info().
 		Str("event_type", eventType).
 		Str("action", action).
 		Str("entity_type", entityType).
@@ -240,7 +238,7 @@ func (l *Logger) LogBusinessEvent(eventType, action, entityType, entityID string
 
 // LogSecurityEvent logs security events
 func (l *Logger) LogSecurityEvent(eventType, username, clientIP string, success bool, details map[string]interface{}) {
-	event := l.Info().
+	event := l.logger.Info().
 		Str("event_type", eventType).
 		Str("username", username).
 		Str("client_ip", clientIP).

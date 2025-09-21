@@ -4,8 +4,8 @@
 -- Insert default admin user (password should be changed in production)
 -- Password is 'admin123' hashed with bcrypt
 INSERT INTO users (username, password_hash, role) VALUES
-('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin'),
-('viewer', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'viewer');
+('admin', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPkU2Cslq', 'admin'),
+('viewer', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPkU2Cslq', 'viewer');
 
 -- Insert sample configuration items
 INSERT INTO configuration_items (name, type, attributes, tags) VALUES

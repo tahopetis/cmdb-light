@@ -17,12 +17,13 @@ type User struct {
 	PasswordHash string    `json:"-" db:"password_hash" validate:"required,min=8"`
 	Role         string    `json:"role" db:"role" validate:"required,oneof=admin user viewer"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // LoginRequest represents a login request
 type LoginRequest struct {
 	Username string `json:"username" validate:"required,min=3,max=50"`
-	Password string `json:"password" validate:"required,min=8"`
+	Password string `json:"password" validate:"required,min=3"`
 }
 
 // LoginResponse represents a login response
@@ -34,12 +35,12 @@ type LoginResponse struct {
 
 // RefreshToken represents a refresh token in the database
 type RefreshToken struct {
-	ID        uuid.UUID    `json:"id" db:"id" validate:"uuid"`
-	UserID    uuid.UUID    `json:"user_id" db:"user_id" validate:"required,uuid"`
-	TokenHash string       `json:"-" db:"token_hash" validate:"required"`
-	ExpiresAt time.Time    `json:"expires_at" db:"expires_at" validate:"required"`
-	CreatedAt time.Time    `json:"created_at" db:"created_at"`
-	RevokedAt *time.Time   `json:"revoked_at,omitempty" db:"revoked_at"`
+	ID        uuid.UUID  `json:"id" db:"id" validate:"uuid"`
+	UserID    uuid.UUID  `json:"user_id" db:"user_id" validate:"required,uuid"`
+	TokenHash string     `json:"-" db:"token_hash" validate:"required"`
+	ExpiresAt time.Time  `json:"expires_at" db:"expires_at" validate:"required"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
 }
 
 // TokenRefreshRequest represents a token refresh request
@@ -63,13 +64,13 @@ type RegisterRequest struct {
 
 // CI represents a Configuration Item
 type CI struct {
-	ID        uuid.UUID      `json:"id" db:"id" validate:"uuid"`
-	Name      string         `json:"name" db:"name" validate:"required,min=1,max=100"`
-	Type      string         `json:"type" db:"type" validate:"required,min=1,max=50"`
-	Attributes JSONBMap      `json:"attributes" db:"attributes"`
-	Tags      []string       `json:"tags" db:"tags"`
-	CreatedAt time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at" db:"updated_at"`
+	ID         uuid.UUID `json:"id" db:"id" validate:"uuid"`
+	Name       string    `json:"name" db:"name" validate:"required,min=1,max=100"`
+	Type       string    `json:"type" db:"type" validate:"required,min=1,max=50"`
+	Attributes JSONBMap  `json:"attributes" db:"attributes"`
+	Tags       []string  `json:"tags" db:"tags"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // Relationship represents a relationship between CIs
@@ -128,10 +129,10 @@ func (s *StringArray) Scan(value interface{}) error {
 
 // ErrorResponse represents a standardized error response
 type ErrorResponse struct {
-	Code      string      `json:"code"`        // Error code or type
-	Message   string      `json:"message"`     // Human-readable error message
-	Details   interface{} `json:"details"`     // Optional details field for additional context
-	Timestamp time.Time   `json:"timestamp"`   // Timestamp of the error
+	Code      string      `json:"code"`      // Error code or type
+	Message   string      `json:"message"`   // Human-readable error message
+	Details   interface{} `json:"details"`   // Optional details field for additional context
+	Timestamp time.Time   `json:"timestamp"` // Timestamp of the error
 }
 
 // ErrorType represents different types of errors
@@ -139,30 +140,30 @@ type ErrorType string
 
 const (
 	// Validation errors (400 Bad Request)
-	ErrorTypeValidation     ErrorType = "VALIDATION_ERROR"
-	ErrorTypeInvalidInput   ErrorType = "INVALID_INPUT"
-	ErrorTypeMissingParam   ErrorType = "MISSING_PARAMETER"
-	
+	ErrorTypeValidation   ErrorType = "VALIDATION_ERROR"
+	ErrorTypeInvalidInput ErrorType = "INVALID_INPUT"
+	ErrorTypeMissingParam ErrorType = "MISSING_PARAMETER"
+
 	// Authentication errors (401 Unauthorized)
-	ErrorTypeUnauthorized   ErrorType = "UNAUTHORIZED"
-	ErrorTypeInvalidToken  ErrorType = "INVALID_TOKEN"
-	ErrorTypeTokenExpired  ErrorType = "TOKEN_EXPIRED"
-	
+	ErrorTypeUnauthorized ErrorType = "UNAUTHORIZED"
+	ErrorTypeInvalidToken ErrorType = "INVALID_TOKEN"
+	ErrorTypeTokenExpired ErrorType = "TOKEN_EXPIRED"
+
 	// Authorization errors (403 Forbidden)
-	ErrorTypeForbidden     ErrorType = "FORBIDDEN"
+	ErrorTypeForbidden               ErrorType = "FORBIDDEN"
 	ErrorTypeInsufficientPermissions ErrorType = "INSUFFICIENT_PERMISSIONS"
-	
+
 	// Not found errors (404 Not Found)
-	ErrorTypeNotFound      ErrorType = "NOT_FOUND"
-	ErrorTypeUserNotFound  ErrorType = "USER_NOT_FOUND"
-	ErrorTypeCINotFound    ErrorType = "CI_NOT_FOUND"
+	ErrorTypeNotFound             ErrorType = "NOT_FOUND"
+	ErrorTypeUserNotFound         ErrorType = "USER_NOT_FOUND"
+	ErrorTypeCINotFound           ErrorType = "CI_NOT_FOUND"
 	ErrorTypeRelationshipNotFound ErrorType = "RELATIONSHIP_NOT_FOUND"
-	ErrorTypeAuditLogNotFound ErrorType = "AUDIT_LOG_NOT_FOUND"
-	
+	ErrorTypeAuditLogNotFound     ErrorType = "AUDIT_LOG_NOT_FOUND"
+
 	// Server errors (500 Internal Server Error)
-	ErrorTypeInternal      ErrorType = "INTERNAL_ERROR"
-	ErrorTypeDatabase      ErrorType = "DATABASE_ERROR"
-	ErrorTypeService       ErrorType = "SERVICE_ERROR"
+	ErrorTypeInternal ErrorType = "INTERNAL_ERROR"
+	ErrorTypeDatabase ErrorType = "DATABASE_ERROR"
+	ErrorTypeService  ErrorType = "SERVICE_ERROR"
 )
 
 // NewErrorResponse creates a new error response with the given parameters
@@ -185,7 +186,7 @@ func GetHTTPStatusForError(errorType ErrorType) int {
 	case ErrorTypeForbidden, ErrorTypeInsufficientPermissions:
 		return http.StatusForbidden
 	case ErrorTypeNotFound, ErrorTypeUserNotFound, ErrorTypeCINotFound,
-	     ErrorTypeRelationshipNotFound, ErrorTypeAuditLogNotFound:
+		ErrorTypeRelationshipNotFound, ErrorTypeAuditLogNotFound:
 		return http.StatusNotFound
 	default:
 		return http.StatusInternalServerError

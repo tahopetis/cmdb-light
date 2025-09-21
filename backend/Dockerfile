@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install git and ca-certificates
 RUN apk add --no-cache git ca-certificates tzdata
@@ -16,6 +16,9 @@ COPY go.mod go.sum ./
 
 # Download dependencies
 RUN go mod download
+
+# Generate go.sum file with proper checksums
+RUN go mod tidy
 
 # Copy source code
 COPY . .
