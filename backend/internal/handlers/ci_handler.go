@@ -9,6 +9,7 @@ import (
 	"github.com/cmdb-lite/backend/internal/middleware"
 	"github.com/cmdb-lite/backend/internal/models"
 	"github.com/cmdb-lite/backend/internal/repositories"
+	"github.com/cmdb-lite/backend/internal/validation"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
@@ -18,6 +19,7 @@ type CIHandler struct {
 	ciRepo       repositories.CIRepository
 	relRepo      repositories.RelationshipRepository
 	auditRepo    repositories.AuditLogRepository
+	validator    *validation.Validator
 }
 
 // NewCIHandler creates a new CIHandler
@@ -30,6 +32,7 @@ func NewCIHandler(
 		ciRepo:    ciRepo,
 		relRepo:   relRepo,
 		auditRepo: auditRepo,
+		validator: validation.NewValidator(),
 	}
 }
 
@@ -51,19 +54,21 @@ func (h *CIHandler) CreateCI(w http.ResponseWriter, r *http.Request) {
 	// Get the username from the context
 	username, ok := middleware.GetUsernameFromContext(r.Context())
 	if !ok {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return
 	}
 
 	var ci models.CI
 	if err := json.NewDecoder(r.Body).Decode(&ci); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid request body", nil)
 		return
 	}
 
-	// Validate CI data
-	if ci.Name == "" || ci.Type == "" {
-		http.Error(w, "Name and type are required", http.StatusBadRequest)
+	// Validate CI data using the validator
+	if validationError := h.validator.Validate(ci); validationError != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(models.GetHTTPStatusForError(models.ErrorTypeValidation))
+		json.NewEncoder(w).Encode(validationError)
 		return
 	}
 
@@ -77,7 +82,7 @@ func (h *CIHandler) CreateCI(w http.ResponseWriter, r *http.Request) {
 
 	// Create the CI
 	if err := h.ciRepo.Create(r.Context(), &ci); err != nil {
-		http.Error(w, "Failed to create CI", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to create CI", nil)
 		return
 	}
 
@@ -120,20 +125,20 @@ func (h *CIHandler) GetCI(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the CI
 	ci, err := h.ciRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "CI not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "CI not found", nil)
 		return
 	}
 
@@ -180,7 +185,7 @@ func (h *CIHandler) GetAllCIs(w http.ResponseWriter, r *http.Request) {
 	// Get all CIs
 	cis, err := h.ciRepo.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, "Failed to get CIs", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get CIs", nil)
 		return
 	}
 
@@ -232,7 +237,7 @@ func (h *CIHandler) UpdateCI(w http.ResponseWriter, r *http.Request) {
 	// Get the username from the context
 	username, ok := middleware.GetUsernameFromContext(r.Context())
 	if !ok {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return
 	}
 
@@ -240,33 +245,35 @@ func (h *CIHandler) UpdateCI(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the existing CI
 	existingCI, err := h.ciRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "CI not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "CI not found", nil)
 		return
 	}
 
 	// Decode the request body
 	var updatedCI models.CI
 	if err := json.NewDecoder(r.Body).Decode(&updatedCI); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid request body", nil)
 		return
 	}
 
-	// Validate CI data
-	if updatedCI.Name == "" || updatedCI.Type == "" {
-		http.Error(w, "Name and type are required", http.StatusBadRequest)
+	// Validate CI data using the validator
+	if validationError := h.validator.Validate(updatedCI); validationError != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(models.GetHTTPStatusForError(models.ErrorTypeValidation))
+		json.NewEncoder(w).Encode(validationError)
 		return
 	}
 
@@ -278,7 +285,7 @@ func (h *CIHandler) UpdateCI(w http.ResponseWriter, r *http.Request) {
 	existingCI.UpdatedAt = time.Now()
 
 	if err := h.ciRepo.Update(r.Context(), existingCI); err != nil {
-		http.Error(w, "Failed to update CI", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to update CI", nil)
 		return
 	}
 
@@ -319,7 +326,7 @@ func (h *CIHandler) DeleteCI(w http.ResponseWriter, r *http.Request) {
 	// Get the username from the context
 	username, ok := middleware.GetUsernameFromContext(r.Context())
 	if !ok {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return
 	}
 
@@ -327,26 +334,26 @@ func (h *CIHandler) DeleteCI(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the CI
 	ci, err := h.ciRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "CI not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "CI not found", nil)
 		return
 	}
 
 	// Delete the CI
 	if err := h.ciRepo.Delete(r.Context(), id); err != nil {
-		http.Error(w, "Failed to delete CI", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to delete CI", nil)
 		return
 	}
 
@@ -387,34 +394,34 @@ func (h *CIHandler) GetCIGraph(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the CI
 	ci, err := h.ciRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "CI not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "CI not found", nil)
 		return
 	}
 
 	// Get relationships where this CI is the source
 	sourceRels, err := h.relRepo.GetBySourceID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Failed to get relationships", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get relationships", nil)
 		return
 	}
 
 	// Get relationships where this CI is the target
 	targetRels, err := h.relRepo.GetByTargetID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Failed to get relationships", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get relationships", nil)
 		return
 	}
 

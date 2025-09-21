@@ -8,6 +8,7 @@ import (
 	"github.com/cmdb-lite/backend/internal/middleware"
 	"github.com/cmdb-lite/backend/internal/models"
 	"github.com/cmdb-lite/backend/internal/repositories"
+	"github.com/cmdb-lite/backend/internal/validation"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
@@ -15,11 +16,15 @@ import (
 // AuditLogHandler handles HTTP requests for audit logs
 type AuditLogHandler struct {
 	auditRepo repositories.AuditLogRepository
+	validator *validation.Validator
 }
 
 // NewAuditLogHandler creates a new AuditLogHandler
 func NewAuditLogHandler(auditRepo repositories.AuditLogRepository) *AuditLogHandler {
-	return &AuditLogHandler{auditRepo: auditRepo}
+	return &AuditLogHandler{
+		auditRepo: auditRepo,
+		validator: validation.NewValidator(),
+	}
 }
 
 // GetAuditLog handles retrieving an audit log by ID
@@ -42,20 +47,20 @@ func (h *AuditLogHandler) GetAuditLog(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the audit log
 	auditLog, err := h.auditRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Audit log not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "Audit log not found", nil)
 		return
 	}
 
@@ -117,7 +122,7 @@ func (h *AuditLogHandler) GetAllAuditLogs(w http.ResponseWriter, r *http.Request
 		// Filter by entity ID
 		entityID, err := uuid.Parse(entityIDStr)
 		if err != nil {
-			http.Error(w, "Invalid entity ID format", http.StatusBadRequest)
+			middleware.RespondWithValidationError(w, "Invalid entity ID format", nil)
 			return
 		}
 		auditLogs, err = h.auditRepo.GetByEntityID(r.Context(), entityID)
@@ -130,7 +135,7 @@ func (h *AuditLogHandler) GetAllAuditLogs(w http.ResponseWriter, r *http.Request
 	}
 
 	if err != nil {
-		http.Error(w, "Failed to get audit logs", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get audit logs", nil)
 		return
 	}
 
@@ -183,7 +188,7 @@ func (h *AuditLogHandler) GetAuditLogsByEntityType(w http.ResponseWriter, r *htt
 	vars := mux.Vars(r)
 	entityType, ok := vars["entity_type"]
 	if !ok {
-		http.Error(w, "Entity type parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Entity type parameter is required", nil)
 		return
 	}
 
@@ -212,7 +217,7 @@ func (h *AuditLogHandler) GetAuditLogsByEntityType(w http.ResponseWriter, r *htt
 	// Get audit logs by entity type
 	auditLogs, err := h.auditRepo.GetByEntityType(r.Context(), entityType)
 	if err != nil {
-		http.Error(w, "Failed to get audit logs", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get audit logs", nil)
 		return
 	}
 
@@ -265,13 +270,13 @@ func (h *AuditLogHandler) GetAuditLogsByEntityID(w http.ResponseWriter, r *http.
 	vars := mux.Vars(r)
 	entityIDStr, ok := vars["entity_id"]
 	if !ok {
-		http.Error(w, "Entity ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Entity ID parameter is required", nil)
 		return
 	}
 
 	entityID, err := uuid.Parse(entityIDStr)
 	if err != nil {
-		http.Error(w, "Invalid entity ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid entity ID format", nil)
 		return
 	}
 
@@ -300,7 +305,7 @@ func (h *AuditLogHandler) GetAuditLogsByEntityID(w http.ResponseWriter, r *http.
 	// Get audit logs by entity ID
 	auditLogs, err := h.auditRepo.GetByEntityID(r.Context(), entityID)
 	if err != nil {
-		http.Error(w, "Failed to get audit logs", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get audit logs", nil)
 		return
 	}
 
@@ -353,7 +358,7 @@ func (h *AuditLogHandler) GetAuditLogsByChangedBy(w http.ResponseWriter, r *http
 	vars := mux.Vars(r)
 	changedBy, ok := vars["changed_by"]
 	if !ok {
-		http.Error(w, "Changed by parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Changed by parameter is required", nil)
 		return
 	}
 
@@ -382,7 +387,7 @@ func (h *AuditLogHandler) GetAuditLogsByChangedBy(w http.ResponseWriter, r *http
 	// Get audit logs by changed by
 	auditLogs, err := h.auditRepo.GetByChangedBy(r.Context(), changedBy)
 	if err != nil {
-		http.Error(w, "Failed to get audit logs", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get audit logs", nil)
 		return
 	}
 
@@ -433,12 +438,12 @@ func (h *AuditLogHandler) DeleteAuditLog(w http.ResponseWriter, r *http.Request)
 	// Only admin users can delete audit logs
 	userRole, ok := middleware.GetUserRoleFromContext(r.Context())
 	if !ok {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return
 	}
 
 	if userRole != "admin" {
-		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		middleware.RespondWithForbiddenError(w, "Insufficient permissions", nil)
 		return
 	}
 
@@ -446,19 +451,19 @@ func (h *AuditLogHandler) DeleteAuditLog(w http.ResponseWriter, r *http.Request)
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Delete the audit log
 	if err := h.auditRepo.Delete(r.Context(), id); err != nil {
-		http.Error(w, "Failed to delete audit log", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to delete audit log", nil)
 		return
 	}
 

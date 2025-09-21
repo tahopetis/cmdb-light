@@ -23,14 +23,14 @@ func AuthMiddleware(jwtManager *auth.JWTManager) func(http.Handler) http.Handler
 			// Get the Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				http.Error(w, "Authorization header required", http.StatusUnauthorized)
+				RespondWithUnauthorizedError(w, "Authorization header required", nil)
 				return
 			}
 
 			// Check if the Authorization header has the correct format
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || parts[0] != "Bearer" {
-				http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
+				RespondWithUnauthorizedError(w, "Invalid authorization format", nil)
 				return
 			}
 
@@ -40,7 +40,7 @@ func AuthMiddleware(jwtManager *auth.JWTManager) func(http.Handler) http.Handler
 			// Verify the token
 			claims, err := jwtManager.Verify(token)
 			if err != nil {
-				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+				RespondWithUnauthorizedError(w, "Invalid or expired token", nil)
 				return
 			}
 

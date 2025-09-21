@@ -8,6 +8,7 @@ import (
 	"github.com/cmdb-lite/backend/internal/middleware"
 	"github.com/cmdb-lite/backend/internal/models"
 	"github.com/cmdb-lite/backend/internal/repositories"
+	"github.com/cmdb-lite/backend/internal/validation"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
@@ -16,6 +17,7 @@ import (
 type RelationshipHandler struct {
 	relRepo   repositories.RelationshipRepository
 	auditRepo repositories.AuditLogRepository
+	validator *validation.Validator
 }
 
 // NewRelationshipHandler creates a new RelationshipHandler
@@ -26,6 +28,7 @@ func NewRelationshipHandler(
 	return &RelationshipHandler{
 		relRepo:   relRepo,
 		auditRepo: auditRepo,
+		validator: validation.NewValidator(),
 	}
 }
 
@@ -47,19 +50,21 @@ func (h *RelationshipHandler) CreateRelationship(w http.ResponseWriter, r *http.
 	// Get the username from the context
 	username, ok := middleware.GetUsernameFromContext(r.Context())
 	if !ok {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return
 	}
 
 	var relationship models.Relationship
 	if err := json.NewDecoder(r.Body).Decode(&relationship); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid request body", nil)
 		return
 	}
 
-	// Validate relationship data
-	if relationship.SourceID == uuid.Nil || relationship.TargetID == uuid.Nil || relationship.Type == "" {
-		http.Error(w, "Source ID, target ID, and type are required", http.StatusBadRequest)
+	// Validate relationship data using the validator
+	if validationError := h.validator.Validate(relationship); validationError != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(models.GetHTTPStatusForError(models.ErrorTypeValidation))
+		json.NewEncoder(w).Encode(validationError)
 		return
 	}
 
@@ -71,7 +76,7 @@ func (h *RelationshipHandler) CreateRelationship(w http.ResponseWriter, r *http.
 
 	// Create the relationship
 	if err := h.relRepo.Create(r.Context(), &relationship); err != nil {
-		http.Error(w, "Failed to create relationship", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to create relationship", nil)
 		return
 	}
 
@@ -113,20 +118,20 @@ func (h *RelationshipHandler) GetRelationship(w http.ResponseWriter, r *http.Req
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the relationship
 	relationship, err := h.relRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Relationship not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "Relationship not found", nil)
 		return
 	}
 
@@ -149,7 +154,7 @@ func (h *RelationshipHandler) GetAllRelationships(w http.ResponseWriter, r *http
 	// Get all relationships
 	relationships, err := h.relRepo.GetAll(r.Context())
 	if err != nil {
-		http.Error(w, "Failed to get relationships", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to get relationships", nil)
 		return
 	}
 
@@ -177,7 +182,7 @@ func (h *RelationshipHandler) UpdateRelationship(w http.ResponseWriter, r *http.
 	// Get the username from the context
 	username, ok := middleware.GetUsernameFromContext(r.Context())
 	if !ok {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return
 	}
 
@@ -185,33 +190,35 @@ func (h *RelationshipHandler) UpdateRelationship(w http.ResponseWriter, r *http.
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the existing relationship
 	existingRel, err := h.relRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Relationship not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "Relationship not found", nil)
 		return
 	}
 
 	// Decode the request body
 	var updatedRel models.Relationship
 	if err := json.NewDecoder(r.Body).Decode(&updatedRel); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid request body", nil)
 		return
 	}
 
-	// Validate relationship data
-	if updatedRel.SourceID == uuid.Nil || updatedRel.TargetID == uuid.Nil || updatedRel.Type == "" {
-		http.Error(w, "Source ID, target ID, and type are required", http.StatusBadRequest)
+	// Validate relationship data using the validator
+	if validationError := h.validator.Validate(updatedRel); validationError != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(models.GetHTTPStatusForError(models.ErrorTypeValidation))
+		json.NewEncoder(w).Encode(validationError)
 		return
 	}
 
@@ -221,7 +228,7 @@ func (h *RelationshipHandler) UpdateRelationship(w http.ResponseWriter, r *http.
 	existingRel.Type = updatedRel.Type
 
 	if err := h.relRepo.Update(r.Context(), existingRel); err != nil {
-		http.Error(w, "Failed to update relationship", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to update relationship", nil)
 		return
 	}
 
@@ -262,7 +269,7 @@ func (h *RelationshipHandler) DeleteRelationship(w http.ResponseWriter, r *http.
 	// Get the username from the context
 	username, ok := middleware.GetUsernameFromContext(r.Context())
 	if !ok {
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		middleware.RespondWithUnauthorizedError(w, "User not authenticated", nil)
 		return
 	}
 
@@ -270,26 +277,26 @@ func (h *RelationshipHandler) DeleteRelationship(w http.ResponseWriter, r *http.
 	vars := mux.Vars(r)
 	idStr, ok := vars["id"]
 	if !ok {
-		http.Error(w, "ID parameter is required", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "ID parameter is required", nil)
 		return
 	}
 
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		middleware.RespondWithValidationError(w, "Invalid ID format", nil)
 		return
 	}
 
 	// Get the relationship
 	rel, err := h.relRepo.GetByID(r.Context(), id)
 	if err != nil {
-		http.Error(w, "Relationship not found", http.StatusNotFound)
+		middleware.RespondWithNotFoundError(w, "Relationship not found", nil)
 		return
 	}
 
 	// Delete the relationship
 	if err := h.relRepo.Delete(r.Context(), id); err != nil {
-		http.Error(w, "Failed to delete relationship", http.StatusInternalServerError)
+		middleware.RespondWithInternalError(w, "Failed to delete relationship", nil)
 		return
 	}
 

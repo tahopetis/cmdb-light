@@ -45,19 +45,20 @@ func SetupRouter(
 
 	// Create repositories
 	userRepo := repositories.NewUserPostgresRepository(db.DB)
+	refreshTokenRepo := repositories.NewRefreshTokenPostgresRepository(db.DB)
 	ciRepo := repositories.NewCIPostgresRepository(db.DB)
 	relRepo := repositories.NewRelationshipPostgresRepository(db.DB)
 	auditRepo := repositories.NewAuditLogPostgresRepository(db.DB)
 
 	// Create handlers
-	authHandler := handlers.NewAuthHandler(userRepo, jwtManager, passwordManager)
+	authHandler := handlers.NewAuthHandler(userRepo, refreshTokenRepo, jwtManager, passwordManager)
 	ciHandler := handlers.NewCIHandler(ciRepo, relRepo, auditRepo)
 	relHandler := handlers.NewRelationshipHandler(relRepo, auditRepo)
 	auditLogHandler := handlers.NewAuditLogHandler(auditRepo)
 	metricsHandler := handlers.NewMetricsHandler()
 
 	// Apply common middleware
-	r.Use(middleware.CORS)
+	r.Use(middleware.CORS(cfg))
 	r.Use(middleware.ObservabilityMiddleware)
 	r.Use(middleware.DatabaseQueryMiddleware)
 	r.Use(middleware.Recovery)
@@ -83,12 +84,16 @@ func SetupRouter(
 	}
 
 	// API version 1
+	// All API endpoints are versioned using path-based versioning (e.g., /api/v1/)
+	// This allows for future API versions without breaking existing client integrations
 	apiV1 := r.PathPrefix("/api/v1").Subrouter()
 
 	// Authentication endpoints (no authentication required)
 	authRouter := apiV1.PathPrefix("/auth").Subrouter()
 	authRouter.HandleFunc("/login", authHandler.Login).Methods("POST")
+	authRouter.HandleFunc("/refresh", authHandler.RefreshToken).Methods("POST")
 	authRouter.HandleFunc("/validate", middleware.AuthMiddleware(jwtManager)(http.HandlerFunc(authHandler.ValidateToken))).Methods("GET")
+	authRouter.HandleFunc("/logout", middleware.AuthMiddleware(jwtManager)(http.HandlerFunc(authHandler.Logout))).Methods("POST")
 
 	// CI endpoints (authentication required)
 	ciRouter := apiV1.PathPrefix("/cis").Subrouter()

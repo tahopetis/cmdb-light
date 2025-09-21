@@ -44,7 +44,6 @@ func main() {
 	// Get environment variables
 	dbURL := getEnv("DB_URL", "postgres://postgres:postgres@localhost:5432/cmdb?sslmode=disable")
 	jwtSecret := getEnv("JWT_SECRET", "your-secret-key")
-	jwtExpiration := getEnvAsInt("JWT_EXPIRATION", 24) // in hours
 	serverPort := getEnv("SERVER_PORT", "8080")
 
 	// Connect to the database
@@ -62,7 +61,7 @@ func main() {
 	logger.Info("Successfully connected to the database")
 
 	// Create JWT manager
-	jwtManager := auth.NewJWTManager(jwtSecret, time.Duration(jwtExpiration)*time.Hour)
+	jwtManager := auth.NewJWTManager(jwtSecret, cfg.AccessTokenDuration, cfg.RefreshTokenDuration)
 
 	// Create password manager
 	passwordManager := auth.NewPasswordManager()

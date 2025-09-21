@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 )
 
 type Config struct {
@@ -15,6 +17,10 @@ type Config struct {
 	DatabasePass string
 	DatabaseName string
 	JWTSecret    string
+	
+	// Token configuration
+	AccessTokenDuration  time.Duration
+	RefreshTokenDuration time.Duration
 	
 	// Logging configuration
 	LogLevel     string
@@ -31,6 +37,12 @@ type Config struct {
 	TracingJaegerURL string
 	TracingZipkinURL string
 	TracingSamplingRate float64
+	
+	// CORS configuration
+	CORSAllowedOrigins []string
+	CORSAllowedMethods []string
+	CORSAllowedHeaders []string
+	CORSAllowCredentials bool
 }
 
 func Load() *Config {
@@ -42,6 +54,10 @@ func Load() *Config {
 		DatabasePass: getEnv("DB_PASSWORD", "cmdb_password"),
 		DatabaseName: getEnv("DB_NAME", "cmdb_lite"),
 		JWTSecret:    getEnv("JWT_SECRET", "your-secret-key"),
+		
+		// Token configuration
+		AccessTokenDuration:  getEnvAsDuration("ACCESS_TOKEN_DURATION", "15m"),
+		RefreshTokenDuration: getEnvAsDuration("REFRESH_TOKEN_DURATION", "168h"), // 7 days
 		
 		// Logging configuration
 		LogLevel:     getEnv("LOG_LEVEL", "info"),
@@ -58,6 +74,12 @@ func Load() *Config {
 		TracingJaegerURL:     getEnv("TRACING_JAEGER_URL", ""),
 		TracingZipkinURL:     getEnv("TRACING_ZIPKIN_URL", ""),
 		TracingSamplingRate:  getEnvAsFloat("TRACING_SAMPLING_RATE", 1.0),
+		
+		// CORS configuration
+		CORSAllowedOrigins:   getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
+		CORSAllowedMethods:   getEnvAsSlice("CORS_ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+		CORSAllowedHeaders:   getEnvAsSlice("CORS_ALLOWED_HEADERS", []string{"Accept", "Content-Type", "Content-Length", "Accept-Encoding", "Authorization"}),
+		CORSAllowCredentials: getEnvAsBool("CORS_ALLOW_CREDENTIALS", true),
 	}
 	
 	return cfg
@@ -74,6 +96,26 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvAsDuration(key string, defaultValue string) time.Duration {
+	valueStr := getEnv(key, "")
+	if value, err := time.ParseDuration(valueStr); err == nil {
+		return value
+	}
+	log.Printf("Invalid duration value for %s, using default: %s", key, defaultValue)
+	value, _ := time.ParseDuration(defaultValue)
+	return value
+}
+
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue
+	}
+	
+	// Simple split by comma - in production, you might want a more sophisticated parser
+	return strings.Split(valueStr, ",")
 }
 
 func getEnvAsInt(key string, defaultValue int) int {

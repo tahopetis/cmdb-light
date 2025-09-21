@@ -17,6 +17,9 @@ require (
 	github.com/ory/dockertest v3.3.5+incompatible
 	github.com/pact-foundation/pact-go v2.0.0+incompatible
 	
+	// Validation library
+	github.com/go-playground/validator/v10 v10.14.0
+	
 	// Monitoring and logging dependencies
 	github.com/rs/zerolog v1.30.0
 	github.com/prometheus/client_golang v1.16.0

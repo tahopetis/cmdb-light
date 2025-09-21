@@ -1,12 +1,16 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
+// API base URL with version prefix
+// All API endpoints are versioned using path-based versioning (e.g., /api/v1/)
+// This allows for future API versions without breaking existing client integrations
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
-    token: localStorage.getItem('token') || null,
+    accessToken: localStorage.getItem('accessToken') || null,
+    refreshToken: localStorage.getItem('refreshToken') || null,
     isAuthenticated: false,
     isLoading: false
   }),
@@ -31,13 +35,15 @@ export const useAuthStore = defineStore('auth', {
           password
         })
         
-        const { token, user } = response.data
+        const { accessToken, refreshToken, user } = response.data
         
-        // Store token in localStorage
-        localStorage.setItem('token', token)
+        // Store tokens in localStorage
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('refreshToken', refreshToken)
         
         // Update state
-        this.token = token
+        this.accessToken = accessToken
+        this.refreshToken = refreshToken
         this.user = user
         this.isAuthenticated = true
         
@@ -56,32 +62,54 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     
-    logout() {
-      // Remove token from localStorage
-      localStorage.removeItem('token')
+    async logout() {
+      try {
+        // Call the logout endpoint to revoke the refresh token
+        if (this.accessToken) {
+          await axios.post(`${API_URL}/auth/logout`, {}, {
+            headers: {
+              Authorization: `Bearer ${this.accessToken}`
+            }
+          })
+        }
+      } catch (error) {
+        console.error('Logout error:', error)
+        // Continue with local logout even if the API call fails
+      }
+      
+      // Remove tokens from localStorage
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
       
       // Reset state
-      this.token = null
+      this.accessToken = null
+      this.refreshToken = null
       this.user = null
       this.isAuthenticated = false
     },
     
     checkAuth() {
-      // Check if token exists and is not expired
-      if (!this.token) {
+      // Check if access token exists and is not expired
+      if (!this.accessToken) {
         this.isAuthenticated = false
         return false
       }
       
       try {
         // Decode JWT token to check expiration
-        const payload = JSON.parse(atob(this.token.split('.')[1]))
+        const payload = JSON.parse(atob(this.accessToken.split('.')[1]))
         const currentTime = Math.floor(Date.now() / 1000)
         
         if (payload.exp < currentTime) {
-          // Token expired
-          this.logout()
-          return false
+          // Access token expired, try to refresh
+          if (this.refreshToken) {
+            this.refreshAccessToken()
+            return false // Will be updated after refresh
+          } else {
+            // No refresh token, logout
+            this.logout()
+            return false
+          }
         }
         
         // Set user from token payload
@@ -100,13 +128,51 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     
-    async fetchUserProfile() {
-      if (!this.token) return
+    async refreshAccessToken() {
+      if (!this.refreshToken) {
+        this.logout()
+        return false
+      }
       
       try {
-        const response = await axios.get(`${API_URL}/auth/profile`, {
+        const response = await axios.post(`${API_URL}/auth/refresh`, {
+          refreshToken: this.refreshToken
+        })
+        
+        const { accessToken, refreshToken } = response.data
+        
+        // Store new tokens in localStorage
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('refreshToken', refreshToken)
+        
+        // Update state
+        this.accessToken = accessToken
+        this.refreshToken = refreshToken
+        
+        // Update user info from the new access token
+        const payload = JSON.parse(atob(accessToken.split('.')[1]))
+        this.user = {
+          id: payload.sub,
+          username: payload.username,
+          role: payload.role
+        }
+        
+        this.isAuthenticated = true
+        return true
+      } catch (error) {
+        console.error('Token refresh error:', error)
+        this.logout()
+        return false
+      }
+    },
+    
+    async fetchUserProfile() {
+      if (!this.accessToken) return
+      
+      try {
+        const response = await axios.get(`${API_URL}/auth/validate`, {
           headers: {
-            Authorization: `Bearer ${this.token}`
+            Authorization: `Bearer ${this.accessToken}`
           }
         })
         
